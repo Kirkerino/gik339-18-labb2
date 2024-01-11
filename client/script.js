@@ -1,52 +1,109 @@
-const url = "http://localhost:3000/users";
+const url = 'http://localhost:3000/movies';
+const movieForm = document.getElementById('movieForm');
 
-fetch(url)
-  .then(response => response.json())
-  .then(users => {
-    const userList = document.createElement('ul');
+window.addEventListener('load', fetchData);
 
-    userList.style.listStyleType = 'none';
-    userList.style.padding = '100px';
-    userList.style.margin = '0';
-    userList.style.display = 'grid';
-    userList.style.gridTemplateColumns = 'repeat(2, 1fr)';
-    userList.style.gridGap = '20px';
-    userList.style.maxWidth = '850px';
-    userList.style.margin = '0 auto';
-    userList.style.background = 'linear-gradient(to bottom, rgb(50, 50, 50), rgb(40, 40, 40))';
-    userList.style.border = `2px solid gray`;
-    userList.style.borderRadius = '120px 10px 120px 10px';
+// Function to fetch movies from the database (GET)
+function fetchData() {
+  fetch(url)
+    .then((result) => result.json())
+    .then((movies) => {
+      if (movies.length > 0) {
+        let html = `<div class="row row-cols-1 row-cols-md-4 g-4 w-75 mx-auto">`;
+        movies.forEach((movie) => {
+          html += `
+          <div class="col">
+            <div class="border border-2 border-primary-subtle rounded-5 grid text-center bg-dark-subtle bg-gradient">
+              <h2 class="pt-4 fw-semibold">${movie.name} (${movie.year})</h2>
+              <p class="mb-1 text-muted">${movie.genre}</p>
+              <p>${convertRuntime(movie.runtime)}</p>
+              <h1 class="fw-semibold" style="color:${getRatingColor(movie.rating)}">${movie.rating}</h1>
+              <div class="flex justify-between pb-4 pt-2">
+                <button class="btn btn-outline-primary btn-sm mt-2" onclick="setCurrentMovie(${movie.id})">Update</button>
+                <button class="btn btn-outline-danger btn-sm mt-2" onclick="deleteMovie(${movie.id})">Remove</button>
+              </div>
+            </div>
+          </div>`;
+        });
+        html += `</div>`;
 
-    users.forEach(user => {
-      const userItem = document.createElement('li');
-      const nameSpan = document.createElement('span');
+        const listContainer = document.getElementById('listContainer');
+        listContainer.innerHTML = '';
+        listContainer.insertAdjacentHTML('beforeend', html);
+      }
+    });
+}
 
-      nameSpan.textContent = `${user.firstName} ${user.lastName}`;
-      nameSpan.style.fontFamily = 'Arial, sans-serif';
-      nameSpan.style.fontSize = '20px';
-      nameSpan.style.fontWeight = 'bold';
+// Function to set current movie into form for editing (GET)
+function setCurrentMovie(id){
+    console.log('current',id);
+    fetch(`${url}/${id}`)
+       .then((result) => result.json())
+       .then((movie) => {
+          console.log(movie); 
+          movieForm.name.value = movie.name;
+          movieForm.year.value = movie.year;
+          movieForm.genre.value = movie.genre;
+          movieForm.runtime.value = movie.runtime;
+          movieForm.rating.value = movie.rating;
 
-      const idSpan = document.createElement('span');
+          localStorage.setItem("currentId", movie.id);
+    });
+}
 
-      idSpan.textContent = ` (${user.username})`;
-      idSpan.style.fontFamily = 'Monospace, sans-serif';
-      idSpan.style.verticalAlign = 'top';
-      idSpan.style.lineHeight = '1.5em';
-      idSpan.style.fontSize = '16px';
-      idSpan.style.color = 'rgb(30, 30, 30)';
+// Function to handle both adding new movies into the database and updating pre-existing movies (POST & PUT)
+movieForm.addEventListener('submit',handlesubmit);
 
-      userItem.appendChild(nameSpan);
-      userItem.appendChild(idSpan);
+function handlesubmit(e){
+    e.preventDefault();
+    const serverMovieObject = {name: '', year: '', genre: '', runtime: '', rating:''};
+    serverMovieObject.name = movieForm.name.value;
+    serverMovieObject.year = movieForm.year.value;
+    serverMovieObject.genre = movieForm.genre.value;
+    serverMovieObject.runtime = movieForm.runtime.value;
+    serverMovieObject.rating = movieForm.rating.value;
 
-      userItem.style.width = '380px';
-      userItem.style.padding = '20px';
-      userItem.style.background = `linear-gradient(to right, ${user.color}, rgba(255, 255, 255, 0))`;
-      userItem.style.border = `1px solid ${user.color}`;
-      userItem.style.borderRadius = '10px';
+    const id = localStorage.getItem('currentId');
+  if (id) {
+    serverMovieObject.id = id;
+  }
+    const request = new Request(url, {
+        method: serverMovieObject.id ? 'PUT' : 'POST',
+        headers: {
+          'content-type': 'application/json'
+        },
+        body: JSON.stringify(serverMovieObject)
+      });
+      alert('Movie saved!')
 
-      userList.appendChild(userItem);
-  });
-  
-    document.body.appendChild(userList);
-  })
-  .catch(error => console.error('Error:', error));
+      fetch(request).then((response) => {
+        fetchData();
+
+        localStorage.removeItem('currentId');
+        movieForm.reset();
+      });
+}
+
+// Function to remove movies from database (DELETE)
+function deleteMovie(id) {
+  console.log('delete', id);
+  alert('Movie deleted!');
+  fetch(`${url}/${id}`, { method: 'DELETE' }).then((result) => fetchData());
+}
+
+// Function to determine color based on rating
+function getRatingColor(rating) {
+  const parsedRating = parseFloat(rating);
+  const clampedRating = Math.max(1, Math.min(parsedRating, 10));
+  const green = Math.round((clampedRating / 10) * 255);
+  const red = 255 - green;
+
+  return `rgb(${red}, ${green}, 0)`;
+}
+
+// Function to convert minutes to hours and minutes format
+function convertRuntime(minutes) {
+  const hours = Math.floor(minutes / 60);
+  const mins = minutes % 60;
+  return `${hours}h ${mins}min`;
+}
